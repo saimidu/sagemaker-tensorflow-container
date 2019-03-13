@@ -176,8 +176,8 @@ def train():
                                   customer_params=env.hyperparameters)
 
     tf_config = train_wrapper.build_tf_config()
-    # only creating a parameter servers for distributed runs-
-    if len(env.hosts) > 1 and 'ps' in train_wrapper.task_types:
+    # only creating a parameter servers for distributed runs.
+    if len(env.hosts) > 1 and 'ps' in train_wrapper.task_types and env.current_host != 'algo-1':
         _logger.info("Running parameter server.")
         _run_ps_server(env.current_host, env.hosts, tf_config)
 
