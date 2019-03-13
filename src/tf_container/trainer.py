@@ -54,8 +54,9 @@ class Trainer(object):
         self.eval_steps = eval_steps
         self.input_channels = input_channels
         self.model_path = model_path
-        self.ouput_path = output_path
+        self.output_path = output_path
         self.task_type = None
+        self.task_types = []
 
         customer_params['save_checkpoints_secs'] = customer_params.get('save_checkpoints_secs', save_checkpoints_secs)
 
@@ -181,10 +182,20 @@ class Trainer(object):
             task_map['worker'] = workers
         if len(ps) > 0:
             task_map['ps'] = ps
-        self.task_type = 'master' if self.current_host in masters else 'worker' if self.current_host in workers else \
-            'ps' if self.current_host in ps else None
+        if self.current_host not in masters and self.current_host not in workers and self.current_host not in ps:
+            raise ValueError('Increase number of workers or parameter servers. A host has not been assigned: ' +
+                             self.current_host)
 
-        assert self.task_type
+        if self.current_host in masters:
+            self.task_types.append('master')
+        if self.current_host in workers:
+            self.task_types.append('worker')
+        if self.current_host in ps:
+            self.task_types.append('ps')
+
+        assert len(self.task_types) > 0
+
+        self.task_type = self.task_types[0]
 
         task_id = task_map[self.task_type].index(self.current_host)
 

@@ -26,6 +26,17 @@ import tf_container.serve as serve
 
 _logger = tf_container.run.get_logger()
 
+def _wait_until_master_is_up(master):
+    while True:
+        try:
+            # this subprocess call is python 2/3 compatible and will throw an exception when the status code is != 0
+            subprocess.check_call(['curl', '{}:2222'.format(master)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            _logger.info("master node is up.")
+            return
+        except subprocess.CalledProcessError:
+            _logger.info("master node is not up yet")
+            time.sleep(10)
+
 
 def _wait_until_master_is_down(master):
     while True:
@@ -60,6 +71,7 @@ def _run_ps_server(current_host, hosts, tf_config):
 
     Returns:
     """
+
 
     def start_ps_server(current_host, hosts, tf_config):
         cluster_spec = tf.train.ClusterSpec(tf_config['cluster'])
@@ -143,6 +155,9 @@ def train():
     # saving checkpoints of larger sizes.
     os.environ['S3_REQUEST_TIMEOUT_MSEC'] = str(env.hyperparameters.get('s3_checkpoint_save_timeout', 60000))
 
+    # The default connect timeout for S3 is 1000 in the C++ SDK.
+    os.environ['S3_CONNECT_TIMEOUT_MSEC'] = str(env.hyperparameters.get('s3_checkpoint_save_timeout', 3000))
+
     if env.user_script_archive.lower().startswith('s3://'):
         env.download_user_module()
     env.pip_install_requirements()
@@ -161,9 +176,15 @@ def train():
                                   customer_params=env.hyperparameters)
 
     tf_config = train_wrapper.build_tf_config()
+    # only creating a parameter servers for distributed runs-
+    if len(env.hosts) > 1 and 'ps' in train_wrapper.task_types:
+        _logger.info("Running parameter server.")
+        _run_ps_server(env.current_host, env.hosts, tf_config)
 
-    # only creating a parameter servers for distributed runs
-    if len(env.hosts) > 1 and (env.current_host == env.hosts[0] or train_wrapper.task_type == 'ps'):
+
+    # Always run PS on master.
+    if len(env.hosts) > 1 and env.current_host == 'algo-1':
+        _logger.info('Running parameter server on algo-1')
         _run_ps_server(env.current_host, env.hosts, tf_config)
 
     save_tf_config_env_var(tf_config)
@@ -183,4 +204,6 @@ def train():
 
     if train_wrapper.task_type != 'master':
         _logger.info('task_type is {}, waiting for master to exit'.format(train_wrapper.task_type))
+        _wait_until_master_is_up(_get_master(tf_config))
         _wait_until_master_is_down(_get_master(tf_config))
+    _logger.info("Master exited. Exiting now.")
