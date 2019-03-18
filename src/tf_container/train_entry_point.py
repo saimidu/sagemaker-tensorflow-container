@@ -23,19 +23,21 @@ import tensorflow as tf
 import container_support as cs
 import tf_container.run
 import tf_container.serve as serve
+from tf_container.timeout import timeout
 
 _logger = tf_container.run.get_logger()
 
 def _wait_until_master_is_up(master):
-    while True:
-        try:
-            # this subprocess call is python 2/3 compatible and will throw an exception when the status code is != 0
-            subprocess.check_call(['curl', '{}:2222'.format(master)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            _logger.info("master node is up.")
-            return
-        except subprocess.CalledProcessError:
-            _logger.info("master node is not up yet")
-            time.sleep(10)
+    with timeout(minutes=10):
+        while True:
+            try:
+                # this subprocess call is python 2/3 compatible and will throw an exception when the status code is != 0
+                subprocess.check_call(['curl', '{}:2222'.format(master)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                _logger.info("master node is up.")
+                return
+            except subprocess.CalledProcessError:
+                _logger.info("master node is not up yet")
+                time.sleep(10)
 
 
 def _wait_until_master_is_down(master):
@@ -180,7 +182,6 @@ def train():
     if len(env.hosts) > 1 and 'ps' in train_wrapper.task_types and env.current_host != 'algo-1':
         _logger.info("Running parameter server.")
         _run_ps_server(env.current_host, env.hosts, tf_config)
-
 
     # Always run PS on master.
     if len(env.hosts) > 1 and env.current_host == 'algo-1':
