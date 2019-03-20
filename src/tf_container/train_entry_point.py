@@ -23,6 +23,7 @@ import tensorflow as tf
 import container_support as cs
 import tf_container.run
 import tf_container.serve as serve
+from multiprocessing import Process
 
 _logger = tf_container.run.get_logger()
 
@@ -67,8 +68,8 @@ def _run_ps_server(current_host, hosts, tf_config):
         server = tf.train.Server(cluster_spec, job_name='ps', task_index=task_index)
         server.join()
 
-    t = Thread(target=start_ps_server, args=(current_host, hosts, tf_config))
-    t.start()
+    p = Process(target=start_ps_server, args=(current_host, hosts, tf_config))
+    p.start()
 
 
 def _get_default_training_params(env):
