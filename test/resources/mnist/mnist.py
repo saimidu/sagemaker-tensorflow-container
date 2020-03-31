@@ -38,8 +38,10 @@ def _load_testing_data(base_dir):
 def assert_can_track_sagemaker_experiments():
     in_sagemaker_training = 'TRAINING_JOB_ARN' in os.environ
     in_python_three = sys.version_info[0] == 3
+    tf_version = tensorflow.__version__
+    minimum_version = ["1", "15"]
 
-    if in_sagemaker_training and in_python_three:
+    if tf_version.split(".")[:-1] >= minimum_version and in_sagemaker_training and in_python_three:
         import smexperiments.tracker
 
         with smexperiments.tracker.Tracker.load() as tracker:
